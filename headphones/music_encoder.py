@@ -72,7 +72,7 @@ def encode(albumPath):
 
                 if headphones.CONFIG.ENCODERLOSSLESS:
                     ext = os.path.normpath(os.path.splitext(music)[1].lstrip(".")).lower()
-                    if not use_xld and ext == 'flac' or use_xld and (
+                    if not use_xld and ext =='ape' or use_xld and (
                             ext != xldFormat and (xldInfoMusic.bitrate / 1000 > 400)):
                         musicFiles.append(os.path.join(r, music))
                         musicTemp = os.path.normpath(

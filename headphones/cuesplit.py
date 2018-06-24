@@ -645,7 +645,10 @@ def split(albumpath):
         cmd.extend(['-f'])
         cmd.extend([SPLIT_FILE_NAME])
         cmd.extend(['-o'])
-        cmd.extend([wave.name_ext.lstrip('.')])
+
+	# Hard-code to FLAC format as shntool has some problem outputting to ape
+        cmd.extend(['flac'])
+        #cmd.extend([wave.name_ext.lstrip('.')])
         cmd.extend([wave.name])
         split = split_baby(wave.name, cmd)
         os.remove(SPLIT_FILE_NAME)

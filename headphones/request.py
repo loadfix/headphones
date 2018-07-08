@@ -103,7 +103,7 @@ def request_response(url, method="get", auto_raise=True,
                 "verification turned off: %s", e)
     except requests.ConnectionError:
         logger.error(
-            "Unable to connect to remote host. Check if the remote "
+            "Unable to connect to remote host: " + url + ". Check if the remote "
             "host is up and running.")
     except requests.Timeout:
         logger.error(

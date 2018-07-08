@@ -14,7 +14,6 @@
 #  along with Headphones.  If not, see <http://www.gnu.org/licenses/>.
 
 # NZBGet support added by CurlyMo <curlymoo1@gmail.com> as a part of XBian - XBMC on the Raspberry Pi
-# t411 support added by a1ex, @likeitneverwentaway on github for maintenance
 
 from base64 import b16encode, b32decode
 from hashlib import sha1
@@ -25,7 +24,6 @@ import datetime
 import subprocess
 import unicodedata
 import urlparse
-from json import loads
 
 import os
 import re
@@ -162,8 +160,6 @@ def get_seed_ratio(provider):
 
     if provider == 'rutracker.org':
         seed_ratio = headphones.CONFIG.RUTRACKER_RATIO
-    elif provider == 'Kick Ass Torrents':
-        seed_ratio = headphones.CONFIG.KAT_RATIO
     elif provider == 'Apollo.rip':
         seed_ratio = headphones.CONFIG.APOLLO_RATIO
     elif provider == 'Redacted':
@@ -176,8 +172,6 @@ def get_seed_ratio(provider):
         seed_ratio = headphones.CONFIG.WAFFLES_RATIO
     elif provider == 'Mininova':
         seed_ratio = headphones.CONFIG.MININOVA_RATIO
-    elif provider == 'Strike':
-        seed_ratio = headphones.CONFIG.STRIKE_RATIO
     else:
         seed_ratio = None
 
@@ -272,16 +266,13 @@ def do_sorted_search(album, new, losslessOnly, choose_specific_download=False):
                        headphones.CONFIG.NZBGET_HOST)
 
     TORRENT_PROVIDERS = (headphones.CONFIG.TORZNAB or
-                         headphones.CONFIG.KAT or
                          headphones.CONFIG.PIRATEBAY or
                          headphones.CONFIG.OLDPIRATEBAY or
                          headphones.CONFIG.MININOVA or
                          headphones.CONFIG.WAFFLES or
                          headphones.CONFIG.RUTRACKER or
                          headphones.CONFIG.APOLLO or
-                         headphones.CONFIG.REDACTED or
-                         headphones.CONFIG.STRIKE or
-                         headphones.CONFIG.TQUATTRECENTONZE)
+                         headphones.CONFIG.REDACTED)
 
     results = []
     myDB = db.DBConnection()
@@ -841,19 +832,6 @@ def send_to_downloader(data, bestqual, album):
             torrent_name = helpers.replace_illegal_chars(folder_name) + '.torrent'
             download_path = os.path.join(headphones.CONFIG.TORRENTBLACKHOLE_DIR, torrent_name)
 
-            # Blackhole for t411
-            if bestqual[2].lower().startswith("http://api.t411"):
-                if headphones.CONFIG.MAGNET_LINKS == 2:
-                    try:
-                        url = bestqual[2].split('TOKEN')[0]
-                        token = bestqual[2].split('TOKEN')[1]
-                        data = request.request_content(url, headers={'Authorization': token})
-                        torrent_to_file(download_path, data)
-                        logger.info('Successfully converted magnet to torrent file')
-                    except Exception as e:
-                        logger.error("Error converting magnet link: %s" % str(e))
-                        return
-
             if bestqual[2].lower().startswith("magnet:"):
                 if headphones.CONFIG.MAGNET_LINKS == 1:
                     try:
@@ -1353,8 +1331,10 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None,
                                 else:
                                     logger.info('Skipping %s, could not determine size' % title)
                                     continue
-                            else:
+                            elif item.size:
                                 size = int(item.size.string)
+                            else:
+                                size = int(item.find("torznab:attr", attrs={"name": "size"}).get('value'))
 
                             if all(word.lower() in title.lower() for word in term.split()):
                                 if size < maxsize and minimumseeders < seeders:
@@ -1371,66 +1351,6 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None,
                         except Exception as e:
                             logger.exception(
                                 "An unknown error occurred trying to parse the feed: %s" % e)
-
-    if headphones.CONFIG.KAT:
-        provider = "Kick Ass Torrents"
-        ka_term = term.replace("!", "")
-
-        # Use proxy if specified
-        if headphones.CONFIG.KAT_PROXY_URL:
-            providerurl = fix_url(set_proxy(headphones.CONFIG.KAT_PROXY_URL))
-        else:
-            providerurl = fix_url("https://katcr.co/new/")
-
-        # Build URL
-        providerurl = providerurl + "/usearch/" + ka_term
-
-        # Set max size and category
-        if headphones.CONFIG.PREFERRED_QUALITY == 3 or losslessOnly:
-            maxsize = 10000000000
-            providerurl += " category:lossless/"
-        elif headphones.CONFIG.PREFERRED_QUALITY == 1 or allow_lossless:
-            maxsize = 10000000000
-            providerurl += " category:music/"
-        else:
-            maxsize = 300000000
-            providerurl += " category:music/"
-
-        # Requesting content
-        logger.info("Searching %s using term: %s" % (provider, ka_term))
-
-        params = {
-            "field": "seeders",
-            "sorder": "desc",
-            "rss": "1"
-        }
-
-        data = request.request_feed(url=providerurl, params=params,
-                                    whitelist_status_code=[404])
-
-        # Process feed
-        if data:
-            if not len(data.entries):
-                logger.info("No results found on %s using search term: %s" % (provider, ka_term))
-            else:
-                for item in data.entries:
-                    try:
-                        title = item['title']
-                        seeders = item['torrent_seeds']
-                        if headphones.CONFIG.TORRENT_DOWNLOADER == 0:
-                            url = item['links'][1]['href']
-                        else:
-                            url = item['torrent_magneturi']
-                        size = int(item['links'][1]['length'])
-                        if size < maxsize and minimumseeders < int(seeders):
-                            resultlist.append((title, size, url, provider, 'torrent', True))
-                            logger.info('Found %s. Size: %s' % (title, helpers.bytes_to_mb(size)))
-                        else:
-                            logger.info(
-                                '%s is larger than the maxsize or has too little seeders for this category, skipping. (Size: %i bytes, Seeders: %d)',
-                                title, size, int(seeders))
-                    except Exception as e:
-                        logger.exception("Unhandled exception in the KAT parser")
 
     if headphones.CONFIG.WAFFLES:
         provider = "Waffles.ch"
@@ -1895,46 +1815,6 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None,
                         logger.error(
                             u"An unknown error occurred in the Old Pirate Bay parser: %s" % e)
 
-    # Strike
-    if headphones.CONFIG.STRIKE:
-        provider = "Strike"
-        s_term = term.replace("!", "")
-        providerurl = fix_url("https://getstrike.net/api/v2/torrents/search/?phrase=")
-
-        providerurl = providerurl + s_term + "&category=Music"
-
-        if headphones.CONFIG.PREFERRED_QUALITY == 3 or losslessOnly:
-            providerurl = providerurl + "&subcategory=Lossless"
-            maxsize = 10000000000
-        elif headphones.CONFIG.PREFERRED_QUALITY == 1 or allow_lossless:
-            maxsize = 10000000000
-        else:
-            maxsize = 300000000
-
-        logger.info("Searching %s using term: %s" % (provider, s_term))
-        data = request.request_json(url=providerurl,
-                                    whitelist_status_code=[404])
-
-        if not data or not data.get('torrents'):
-            logger.info("No results found on %s using search term: %s" % (provider, s_term))
-        else:
-            for item in data['torrents']:
-                try:
-                    title = item['torrent_title']
-                    seeders = item['seeds']
-                    url = item['magnet_uri']
-                    size = int(item['size'])
-
-                    if size < maxsize and minimumseeders < int(seeders):
-                        resultlist.append((title, size, url, provider, 'torrent', True))
-                        logger.info('Found %s. Size: %s' % (title, helpers.bytes_to_mb(size)))
-                    else:
-                        logger.info(
-                            '%s is larger than the maxsize, the wrong format or has too little seeders for this category, skipping. (Size: %i bytes, Seeders: %d)',
-                            title, size, int(seeders))
-                except Exception as e:
-                    logger.exception("Unhandled exception in the Strike parser")
-
     # Mininova
     if headphones.CONFIG.MININOVA:
         provider = "Mininova"
@@ -1995,77 +1875,6 @@ def searchTorrent(album, new=False, losslessOnly=False, albumlength=None,
                         resultlist.append((title, size, url, provider, 'torrent', match))
                     except Exception as e:
                         logger.exception("Unhandled exception in Mininova Parser")
-    # t411
-    if headphones.CONFIG.TQUATTRECENTONZE:
-        username = headphones.CONFIG.TQUATTRECENTONZE_USER
-        password = headphones.CONFIG.TQUATTRECENTONZE_PASSWORD
-        API_URL = "http://api.t411.ai"
-        AUTH_URL = API_URL + '/auth'
-        DL_URL = API_URL + '/torrents/download/'
-        provider = "t411"
-        t411_term = term.replace(" ", "%20")
-        SEARCH_URL = API_URL + '/torrents/search/' + t411_term + "?limit=15&cid=395&subcat=623"
-        headers_login = {'username': username, 'password': password}
-
-        # Requesting content
-        logger.info('Parsing results from t411 using search term: %s' % term)
-        req = request.request_content(AUTH_URL, method='post', data=headers_login)
-
-        if len(req.split('"')) == 9:
-            token = req.split('"')[7]
-            headers_auth = {'Authorization': token}
-            logger.info('t411 - User %s logged in' % username)
-        else:
-            logger.info('t411 - Login error : %s' % req.split('"')[3])
-
-        # Quality
-        if headphones.CONFIG.PREFERRED_QUALITY == 3 or losslessOnly:
-            providerurl = fix_url(SEARCH_URL + "&term[16][]=529&term[16][]=1184")
-        elif headphones.CONFIG.PREFERRED_QUALITY == 1 or allow_lossless:
-            providerurl = fix_url(SEARCH_URL + "&term[16][]=685&term[16][]=527&term[16][]=1070&term[16][]=528&term[16][]=1167&term[16][]=1166&term[16][]=530&term[16][]=529&term[16][]=1184&term[16][]=532&term[16][]=533&term[16][]=1085&term[16][]=534&term[16][]=535&term[16][]=1069&term[16][]=537&term[16][]=538")
-        elif headphones.CONFIG.PREFERRED_QUALITY == 0:
-            providerurl = fix_url(SEARCH_URL + "&term[16][]=685&term[16][]=527&term[16][]=1070&term[16][]=528&term[16][]=1167&term[16][]=1166&term[16][]=530&term[16][]=532&term[16][]=533&term[16][]=1085&term[16][]=534&term[16][]=535&term[16][]=1069&term[16][]=537&term[16][]=538")
-        else:
-            providerurl = fix_url(SEARCH_URL)
-
-        # Tracker search
-        req = request.request_content(providerurl, headers=headers_auth)
-        req = loads(req)
-        total = req['total']
-
-        # Process feed
-        if total == '0':
-            logger.info("No results found from t411 for %s" % term)
-        else:
-            logger.info('Found %s results from t411' % total)
-            torrents = req['torrents']
-            for torrent in torrents:
-                try:
-                    title = torrent['name']
-                    if torrent['seeders'] < minimumseeders:
-                        logger.info('Skipping torrent %s : seeders below minimum set' % title)
-                        continue
-                    id = torrent['id']
-                    size = int(torrent['size'])
-                    data = request.request_content(DL_URL + id, headers=headers_auth)
-
-                    # Blackhole
-                    if headphones.CONFIG.TORRENT_DOWNLOADER == 0 and headphones.CONFIG.MAGNET_LINKS == 2:
-                        url = DL_URL + id + 'TOKEN' + token
-                        resultlist.append((title, size, url, provider, 'torrent', True))
-
-                    # Build magnet
-                    else:
-                        metadata = bdecode(data)
-                        hashcontents = bencode(metadata['info'])
-                        digest = sha1(hashcontents).hexdigest()
-                        trackers = [metadata["announce"]][0]
-                        url = 'magnet:?xt=urn:btih:%s&tr=%s' % (digest, trackers)
-                        resultlist.append((title, size, url, provider, 'torrent', True))
-
-                except Exception as e:
-                    logger.error("Error converting magnet link: %s" % str(e))
-                    return
 
     # attempt to verify that this isn't a substring result
     # when looking for "Foo - Foo" we don't want "Foobar"
@@ -2100,16 +1909,24 @@ def preprocess(resultlist):
             # Download the torrent file
             headers = {}
 
-            if result[3] == 'Kick Ass Torrents':
-                headers['Referer'] = 'https://torcache.net/'
-                headers['User-Agent'] = USER_AGENT
-            elif result[3] == 'Apollo.rip':
+            if result[3] == 'Apollo.rip':
                 headers['User-Agent'] = 'Headphones'
             elif result[3] == 'Redacted':
                 headers['User-Agent'] = 'Headphones'
             elif result[3] == "The Pirate Bay" or result[3] == "Old Pirate Bay":
                 headers[
                     'User-Agent'] = 'Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2243.2 Safari/537.36'
+
+            # Jackett sometimes redirects to a magnet URI
+            if result[3].startswith('Jackett_') or 'torznab' in result[3].lower():
+                r = request.request_response(url=result[2], headers=headers, allow_redirects=False)
+                magnet_link = r.headers.get('Location')
+                if magnet_link and magnet_link.startswith('magnet:'):
+                    new_result = (result[0], result[1], magnet_link, result[3], "magnet", result[5])
+                    return "d10:magnet-uri%d:%se" % (len(magnet_link), magnet_link), new_result
+                else:
+                    return r.content, result
+
             return request.request_content(url=result[2], headers=headers), result
 
         if result[4] == 'magnet':

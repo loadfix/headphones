@@ -14,7 +14,6 @@
 #  along with Headphones.  If not, see <http://www.gnu.org/licenses/>.
 
 # NZBGet support added by CurlyMo <curlymoo1@gmail.com> as a part of XBian - XBMC on the Raspberry Pi
-# t411 support added by a1ex, @likeitneverwentaway on github for maintenance
 
 from operator import itemgetter
 import threading
@@ -1226,9 +1225,6 @@ class WebInterface(object):
             "torrentblackhole_dir": headphones.CONFIG.TORRENTBLACKHOLE_DIR,
             "download_torrent_dir": headphones.CONFIG.DOWNLOAD_TORRENT_DIR,
             "numberofseeders": headphones.CONFIG.NUMBEROFSEEDERS,
-            "use_kat": checked(headphones.CONFIG.KAT),
-            "kat_proxy_url": headphones.CONFIG.KAT_PROXY_URL,
-            "kat_ratio": headphones.CONFIG.KAT_RATIO,
             "use_piratebay": checked(headphones.CONFIG.PIRATEBAY),
             "piratebay_proxy_url": headphones.CONFIG.PIRATEBAY_PROXY_URL,
             "piratebay_ratio": headphones.CONFIG.PIRATEBAY_RATIO,
@@ -1255,11 +1251,6 @@ class WebInterface(object):
             "redacted_username": headphones.CONFIG.REDACTED_USERNAME,
             "redacted_password": headphones.CONFIG.REDACTED_PASSWORD,
             "redacted_ratio": headphones.CONFIG.REDACTED_RATIO,
-            "use_strike": checked(headphones.CONFIG.STRIKE),
-            "strike_ratio": headphones.CONFIG.STRIKE_RATIO,
-            "use_tquattrecentonze": checked(headphones.CONFIG.TQUATTRECENTONZE),
-            "tquattrecentonze_user": headphones.CONFIG.TQUATTRECENTONZE_USER,
-            "tquattrecentonze_password": headphones.CONFIG.TQUATTRECENTONZE_PASSWORD,
             "pref_qual_0": radio(headphones.CONFIG.PREFERRED_QUALITY, 0),
             "pref_qual_1": radio(headphones.CONFIG.PREFERRED_QUALITY, 1),
             "pref_qual_2": radio(headphones.CONFIG.PREFERRED_QUALITY, 2),
@@ -1466,9 +1457,9 @@ class WebInterface(object):
         checked_configs = [
             "launch_browser", "enable_https", "api_enabled", "use_blackhole", "headphones_indexer",
             "use_newznab", "newznab_enabled", "use_torznab", "torznab_enabled",
-            "use_nzbsorg", "use_omgwtfnzbs", "use_kat", "use_piratebay", "use_oldpiratebay",
+            "use_nzbsorg", "use_omgwtfnzbs", "use_piratebay", "use_oldpiratebay",
             "use_mininova", "use_waffles", "use_rutracker",
-            "use_apollo", "use_redacted", "use_strike", "use_tquattrecentonze", "preferred_bitrate_allow_lossless",
+            "use_apollo", "use_redacted", "preferred_bitrate_allow_lossless",
             "detect_bitrate", "ignore_clean_releases", "freeze_db", "cue_split", "move_files",
             "rename_files", "correct_metadata", "cleanup_files", "keep_nfo", "add_album_art",
             "embed_album_art", "embed_lyrics",
@@ -1743,9 +1734,9 @@ class WebInterface(object):
 
     @cherrypy.expose
     def testPlex(self):
-        logger.info(u"Testing plex notifications")
+        logger.info(u"Testing plex update")
         plex = notifiers.Plex()
-        plex.notify("hellooooo", "test album!", "")
+        plex.update()
 
     @cherrypy.expose
     def testPushbullet(self):

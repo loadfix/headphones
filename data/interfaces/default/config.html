@@ -603,23 +603,6 @@
 
                                 <fieldset>
                                     <div class="row checkbox left">
-                                        <input id="use_kat" type="checkbox" class="bigcheck" name="use_kat" value="1" ${config['use_kat']} /><label for="use_kat"><span class="option">Kick Ass Torrents</span></label>
-                                    </div>
-                                    <div class="config">
-                                        <div class="row">
-                                            <label>Proxy URL</label>
-                                            <input type="text" name="kat_proxy_url" value="${config['kat_proxy_url']}" size="36">
-                                            <small>Optional. Leave empty for default.</small>
-                                        </div>
-                                        <div class="row">
-                                            <label>Seed Ratio</label>
-                                            <input type="text" class="override-float" name="kat_ratio" value="${config['kat_ratio']}" size="10" title="Stop seeding when ratio met, 0 = unlimited. Scheduled job will remove torrent when post processed and finished seeding">
-                                        </div>
-                                    </div>
-                                </fieldset>
-
-                                <fieldset>
-                                    <div class="row checkbox left">
                                         <input id="use_waffles" type="checkbox" class="bigcheck" name="use_waffles" value="1" ${config['use_waffles']} /><label for="use_waffles"><span class="option">Waffles.ch</span></label>
                                     </div>
                                     <div class="config">
@@ -708,18 +691,6 @@
 
                                 <fieldset>
                                     <div class="row checkbox left">
-                                        <input id="use_strike" type="checkbox" class="bigcheck" name="use_strike" value="1" ${config['use_strike']} /><label for="use_strike"><span class="option">Strike Search</span></label>
-                                    </div>
-                                    <div class="config">
-                                        <div class="row">
-                                            <label>Seed Ratio</label>
-                                            <input type="text" class="override-float" name="strike_ratio" value="${config['strike_ratio']}" size="10" title="Stop seeding when ratio met, 0 = unlimited. Scheduled job will remove torrent when post processed and finished seeding.">
-                                        </div>
-                                    </div>
-                                </fieldset>
-
-                                <fieldset>
-                                    <div class="row checkbox left">
                                         <input id="use_torznab" type="checkbox" class="bigcheck" name="use_torznab" value="1" ${config['use_torznab']} /><label for="use_torznab"><span class="option">Jackett / Torznab Providers</span></label>
                                     </div>
                                     <div id="torznab_providers">
@@ -795,22 +766,6 @@
                                         <div class="row">
                                             <label>Seed Ratio</label>
                                             <input type="text" class="override-float" name="mininova_ratio" value="${config['mininova_ratio']}" size="10" title="Stop seeding when ratio met, 0 = unlimited. Scheduled job will remove torrent when post processed and finished seeding">
-                                        </div>
-                                    </div>
-                                </fieldset>
-								
-                                <fieldset>
-                                    <div class="row checkbox left">
-                                        <input id="use_tquattrecentonze" type="checkbox" class="bigcheck" name="use_tquattrecentonze" value="1" ${config['use_tquattrecentonze']} /><label for="use_tquattrecentonze"><span class="option">t411</span></label>
-                                    </div>
-                                    <div class="config">
-                                        <div class="row">
-                                            <label>Username</label>
-                                            <input type="text" name="tquattrecentonze_user" value="${config['tquattrecentonze_user']}" size="36">
-                                        </div>
-                                        <div class="row">
-                                            <label>Password</label>
-                                            <input type="password" name="tquattrecentonze_password" value="${config['tquattrecentonze_password'] | h}" size="36">
                                         </div>
                                     </div>
                                 </fieldset>
@@ -2595,7 +2550,6 @@
                 initConfigCheckbox("#use_nzbsorg");
                 initConfigCheckbox("#use_omgwtfnzbs");
                 initConfigCheckbox("#use_torznab");
-                initConfigCheckbox("#use_kat");
                 initConfigCheckbox("#use_piratebay");
                 initConfigCheckbox("#use_oldpiratebay");
                 initConfigCheckbox("#use_mininova");
@@ -2603,12 +2557,10 @@
                 initConfigCheckbox("#use_rutracker");
                 initConfigCheckbox("#use_apollo");
                 initConfigCheckbox("#use_redacted");
-                initConfigCheckbox("#use_strike");
                 initConfigCheckbox("#api_enabled");
                 initConfigCheckbox("#enable_https");
                 initConfigCheckbox("#customauth");
                 initConfigCheckbox("#mb_ignore_age_missing");
-                initConfigCheckbox("#use_tquattrecentonze");
 
                 $('#twitterStep1').click(function () {
                     $.get("/twitterStep1", function (data) {window.open(data); })

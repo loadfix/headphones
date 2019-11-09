@@ -197,9 +197,15 @@ def piratesize(size):
     return size
 
 
-def replace_all(text, dic, normalize=False):
+def pattern_substitute(pattern, dic, normalize=False):
+    """
+    Execute path rendering/substitution based on replacement dictionary
+    e.g. pattern = $Artist/$Album
+         dic = {Artist: 'My artist', Album: 'My album'}
+         returns My artist/My album
+    """
     from headphones import pathrender
-    if not text:
+    if not pattern:
         return ''
 
     if normalize:
@@ -216,7 +222,16 @@ def replace_all(text, dic, normalize=False):
                         j.decode(headphones.SYS_ENCODING, 'replace'))
             new_dic[i] = j
         dic = new_dic
-    return pathrender.render(text, dic)[0]
+    return pathrender.render(pattern, dic)[0]
+
+
+def replace_all(text, dic):
+    if not text:
+        return ''
+
+    for i, j in dic.iteritems():
+        text = text.replace(i, j)
+    return text
 
 
 def replace_illegal_chars(string, type="file"):
@@ -810,9 +825,11 @@ def smartMove(src, dest, delete=True):
 
     source_dir = os.path.dirname(src)
     filename = os.path.basename(src)
+    source_path = os.path.join(source_dir, filename)
+    dest_path = os.path.join(dest, filename)
 
-    if os.path.isfile(os.path.join(dest, filename)):
-        logger.info('Destination file exists: %s', os.path.join(dest, filename))
+    if os.path.isfile(dest_path):
+        logger.info('Destination file exists: %s', dest_path)
         title = os.path.splitext(filename)[0]
         ext = os.path.splitext(filename)[1]
         i = 1
@@ -830,15 +847,29 @@ def smartMove(src, dest, delete=True):
                                 src.decode(headphones.SYS_ENCODING, 'replace'), e)
                 break
 
-    try:
-        if delete:
-            shutil.move(os.path.join(source_dir, filename), os.path.join(dest, filename))
-        else:
-            shutil.copy(os.path.join(source_dir, filename), os.path.join(dest, filename))
+    if delete:
+        try:
+            logger.info('Moving "%s" to "%s"', source_path, dest_path)
+            shutil.move(source_path, dest_path)
+        except Exception as e:
+            exists = os.path.exists(dest_path)
+            if exists and os.path.getsize(source_path) == os.path.getsize(dest_path):
+                logger.warn('Successfully moved file "%s", but something went wrong: %s',
+                    filename.decode(headphones.SYS_ENCODING, 'replace'), e)
+                os.unlink(source_path)
+            else:
+                # remove faultly copied file
+                if exists:
+                    os.unlink(dest_path)
+                raise
+    else:
+        try:
+            logger.info('Copying "%s" to "%s"', source_path, dest_path)
+            shutil.copy(source_path, dest_path)
             return True
-    except Exception as e:
-        logger.warn('Error moving file %s: %s', filename.decode(headphones.SYS_ENCODING, 'replace'),
-                    e)
+        except Exception as e:
+            logger.warn('Error copying file %s: %s', filename.decode(headphones.SYS_ENCODING, 'replace'),
+                        e)
 
 
 def walk_directory(basedir, followlinks=True):

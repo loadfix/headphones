@@ -326,7 +326,7 @@ class WebInterface(object):
                   '$first': firstchar.lower(),
                   }
 
-        folder = helpers.replace_all(folder_format.strip(), values, normalize=True)
+        folder = helpers.pattern_substitute(folder_format.strip(), values, normalize=True)
 
         folder = helpers.replace_illegal_chars(folder, type="folder")
         folder = folder.replace('./', '_/').replace('/.', '/_')
@@ -640,6 +640,7 @@ class WebInterface(object):
                     'SELECT Matched, CleanName, Location, BitRate, Format FROM have WHERE ArtistName=?',
                     [existing_artist])
                 update_count = 0
+                artist_id = None
                 for entry in have_tracks:
                     old_clean_filename = entry['CleanName']
                     if old_clean_filename.startswith(existing_artist_clean):
@@ -648,31 +649,30 @@ class WebInterface(object):
                         myDB.action(
                             'UPDATE have SET CleanName=? WHERE ArtistName=? AND CleanName=?',
                             [new_clean_filename, existing_artist, old_clean_filename])
-                        controlValueDict = {"CleanName": new_clean_filename}
-                        newValueDict = {"Location": entry['Location'],
-                                        "BitRate": entry['BitRate'],
-                                        "Format": entry['Format']
-                                        }
+
                         # Attempt to match tracks with new CleanName
                         match_alltracks = myDB.action(
-                            'SELECT CleanName from alltracks WHERE CleanName=?',
+                            'SELECT CleanName FROM alltracks WHERE CleanName = ?',
                             [new_clean_filename]).fetchone()
                         if match_alltracks:
-                            myDB.upsert("alltracks", newValueDict, controlValueDict)
+                            myDB.action(
+                                'UPDATE alltracks SET Location = ?, BitRate = ?, Format = ? WHERE CleanName = ?',
+                                [entry['Location'], entry['BitRate'], entry['Format'], new_clean_filename])
+
                         match_tracks = myDB.action(
-                            'SELECT CleanName, AlbumID from tracks WHERE CleanName=?',
+                            'SELECT ArtistID, CleanName, AlbumID FROM tracks WHERE CleanName = ?',
                             [new_clean_filename]).fetchone()
                         if match_tracks:
-                            myDB.upsert("tracks", newValueDict, controlValueDict)
+                            myDB.action(
+                                'UPDATE tracks SET Location = ?, BitRate = ?, Format = ? WHERE CleanName = ?',
+                                [entry['Location'], entry['BitRate'], entry['Format'], new_clean_filename])
                             myDB.action('UPDATE have SET Matched="Manual" WHERE CleanName=?',
                                         [new_clean_filename])
                             update_count += 1
-                            # This was throwing errors and I don't know why, but it seems to be working fine.
-                            # else:
-                            # logger.info("There was an error modifying Artist %s. This should not have happened" % existing_artist)
+                            artist_id = match_tracks['Artist_ID']
                 logger.info("Manual matching yielded %s new matches for Artist: %s" % (update_count, new_artist))
-                if update_count > 0:
-                    librarysync.update_album_status()
+                if artist_id:
+                    librarysync.update_album_status(ArtistID=artist_id)
             else:
                 logger.info(
                     "Artist %s already named appropriately; nothing to modify" % existing_artist)
@@ -698,29 +698,28 @@ class WebInterface(object):
                             'UPDATE have SET CleanName=? WHERE ArtistName=? AND AlbumTitle=? AND CleanName=?',
                             [new_clean_filename, existing_artist, existing_album,
                              old_clean_filename])
-                        controlValueDict = {"CleanName": new_clean_filename}
-                        newValueDict = {"Location": entry['Location'],
-                                        "BitRate": entry['BitRate'],
-                                        "Format": entry['Format']
-                                        }
+
                         # Attempt to match tracks with new CleanName
                         match_alltracks = myDB.action(
-                            'SELECT CleanName from alltracks WHERE CleanName=?',
+                            'SELECT CleanName FROM alltracks WHERE CleanName = ?',
                             [new_clean_filename]).fetchone()
                         if match_alltracks:
-                            myDB.upsert("alltracks", newValueDict, controlValueDict)
+                            myDB.action(
+                                'UPDATE alltracks SET Location = ?, BitRate = ?, Format = ? WHERE CleanName = ?',
+                                [entry['Location'], entry['BitRate'], entry['Format'], new_clean_filename])
+
                         match_tracks = myDB.action(
-                            'SELECT CleanName, AlbumID from tracks WHERE CleanName=?',
+                            'SELECT CleanName, AlbumID FROM tracks WHERE CleanName = ?',
                             [new_clean_filename]).fetchone()
                         if match_tracks:
-                            myDB.upsert("tracks", newValueDict, controlValueDict)
+                            myDB.action(
+                                'UPDATE tracks SET Location = ?, BitRate = ?, Format = ? WHERE CleanName = ?',
+                                [entry['Location'], entry['BitRate'], entry['Format'], new_clean_filename])
                             myDB.action('UPDATE have SET Matched="Manual" WHERE CleanName=?',
                                         [new_clean_filename])
                             album_id = match_tracks['AlbumID']
                             update_count += 1
-                            # This was throwing errors and I don't know why, but it seems to be working fine.
-                            # else:
-                            # logger.info("There was an error modifying Artist %s / Album %s with clean name %s" % (existing_artist, existing_album, existing_clean_string))
+
                 logger.info("Manual matching yielded %s new matches for Artist: %s / Album: %s" % (
                     update_count, new_artist, new_album))
                 if update_count > 0:
@@ -785,25 +784,29 @@ class WebInterface(object):
                 album = tracks['AlbumTitle']
                 track_title = tracks['TrackTitle']
                 if tracks['CleanName'] != original_clean:
+                    artist_id_check = myDB.action('SELECT ArtistID FROM tracks WHERE CleanName = ?',
+                                                 [tracks['CleanName']]).fetchone()
+                    if artist_id_check:
+                        artist_id = artist_id_check[0]
                     myDB.action(
-                        'UPDATE tracks SET Location=?, BitRate=?, Format=? WHERE CleanName=?',
+                        'UPDATE tracks SET Location=?, BitRate=?, Format=? WHERE CleanName = ?',
                         [None, None, None, tracks['CleanName']])
                     myDB.action(
-                        'UPDATE alltracks SET Location=?, BitRate=?, Format=? WHERE CleanName=?',
+                        'UPDATE alltracks SET Location=?, BitRate=?, Format=? WHERE CleanName = ?',
                         [None, None, None, tracks['CleanName']])
                     myDB.action(
                         'UPDATE have SET CleanName=?, Matched="Failed" WHERE ArtistName=? AND AlbumTitle=? AND TrackTitle=?',
                         (original_clean, artist, album, track_title))
                     update_count += 1
             if update_count > 0:
-                librarysync.update_album_status()
+                librarysync.update_album_status(ArtistID=artist_id)
             logger.info("Artist: %s successfully restored to unmatched list" % artist)
 
         elif action == "unmatchAlbum":
             artist = existing_artist
             album = existing_album
             update_clean = myDB.select(
-                'SELECT ArtistName, AlbumTitle, TrackTitle, CleanName, Matched from have WHERE ArtistName=? AND AlbumTitle=?',
+                'SELECT ArtistName, AlbumTitle, TrackTitle, CleanName, Matched FROM have WHERE ArtistName=? AND AlbumTitle=?',
                 (artist, album))
             update_count = 0
             for tracks in update_clean:
@@ -812,15 +815,15 @@ class WebInterface(object):
                         'TrackTitle']).lower()
                 track_title = tracks['TrackTitle']
                 if tracks['CleanName'] != original_clean:
-                    album_id_check = myDB.action('SELECT AlbumID from tracks WHERE CleanName=?',
+                    album_id_check = myDB.action('SELECT AlbumID FROM tracks WHERE CleanName = ?',
                                                  [tracks['CleanName']]).fetchone()
                     if album_id_check:
                         album_id = album_id_check[0]
                     myDB.action(
-                        'UPDATE tracks SET Location=?, BitRate=?, Format=? WHERE CleanName=?',
+                        'UPDATE tracks SET Location=?, BitRate=?, Format=? WHERE CleanName = ?',
                         [None, None, None, tracks['CleanName']])
                     myDB.action(
-                        'UPDATE alltracks SET Location=?, BitRate=?, Format=? WHERE CleanName=?',
+                        'UPDATE alltracks SET Location=?, BitRate=?, Format=? WHERE CleanName = ?',
                         [None, None, None, tracks['CleanName']])
                     myDB.action(
                         'UPDATE have SET CleanName=?, Matched="Failed" WHERE ArtistName=? AND AlbumTitle=? AND TrackTitle=?',
@@ -1159,7 +1162,7 @@ class WebInterface(object):
             "download_scan_interval": headphones.CONFIG.DOWNLOAD_SCAN_INTERVAL,
             "update_db_interval": headphones.CONFIG.UPDATE_DB_INTERVAL,
             "mb_ignore_age": headphones.CONFIG.MB_IGNORE_AGE,
-            "mb_ignore_age_missing": headphones.CONFIG.MB_IGNORE_AGE_MISSING,
+            "mb_ignore_age_missing": checked(headphones.CONFIG.MB_IGNORE_AGE_MISSING),
             "search_interval": headphones.CONFIG.SEARCH_INTERVAL,
             "libraryscan_interval": headphones.CONFIG.LIBRARYSCAN_INTERVAL,
             "sab_host": headphones.CONFIG.SAB_HOST,
@@ -1210,6 +1213,7 @@ class WebInterface(object):
             "use_torznab": checked(headphones.CONFIG.TORZNAB),
             "torznab_host": headphones.CONFIG.TORZNAB_HOST,
             "torznab_apikey": headphones.CONFIG.TORZNAB_APIKEY,
+            "torznab_ratio": headphones.CONFIG.TORZNAB_RATIO,
             "torznab_enabled": checked(headphones.CONFIG.TORZNAB_ENABLED),
             "extra_torznabs": headphones.CONFIG.get_extra_torznabs(),
             "use_nzbsorg": checked(headphones.CONFIG.NZBSORG),
@@ -1231,8 +1235,6 @@ class WebInterface(object):
             "use_oldpiratebay": checked(headphones.CONFIG.OLDPIRATEBAY),
             "oldpiratebay_url": headphones.CONFIG.OLDPIRATEBAY_URL,
             "oldpiratebay_ratio": headphones.CONFIG.OLDPIRATEBAY_RATIO,
-            "use_mininova": checked(headphones.CONFIG.MININOVA),
-            "mininova_ratio": headphones.CONFIG.MININOVA_RATIO,
             "use_waffles": checked(headphones.CONFIG.WAFFLES),
             "waffles_uid": headphones.CONFIG.WAFFLES_UID,
             "waffles_passkey": headphones.CONFIG.WAFFLES_PASSKEY,
@@ -1242,15 +1244,16 @@ class WebInterface(object):
             "rutracker_password": headphones.CONFIG.RUTRACKER_PASSWORD,
             "rutracker_ratio": headphones.CONFIG.RUTRACKER_RATIO,
             "rutracker_cookie": headphones.CONFIG.RUTRACKER_COOKIE,
-            "use_apollo": checked(headphones.CONFIG.APOLLO),
-            "apollo_username": headphones.CONFIG.APOLLO_USERNAME,
-            "apollo_password": headphones.CONFIG.APOLLO_PASSWORD,
-            "apollo_ratio": headphones.CONFIG.APOLLO_RATIO,
-            "apollo_url": headphones.CONFIG.APOLLO_URL,
+            "use_orpheus": checked(headphones.CONFIG.ORPHEUS),
+            "orpheus_username": headphones.CONFIG.ORPHEUS_USERNAME,
+            "orpheus_password": headphones.CONFIG.ORPHEUS_PASSWORD,
+            "orpheus_ratio": headphones.CONFIG.ORPHEUS_RATIO,
+            "orpheus_url": headphones.CONFIG.ORPHEUS_URL,
             "use_redacted": checked(headphones.CONFIG.REDACTED),
             "redacted_username": headphones.CONFIG.REDACTED_USERNAME,
             "redacted_password": headphones.CONFIG.REDACTED_PASSWORD,
             "redacted_ratio": headphones.CONFIG.REDACTED_RATIO,
+            "redacted_use_fltoken": checked(headphones.CONFIG.REDACTED_USE_FLTOKEN),
             "pref_qual_0": radio(headphones.CONFIG.PREFERRED_QUALITY, 0),
             "pref_qual_1": radio(headphones.CONFIG.PREFERRED_QUALITY, 1),
             "pref_qual_2": radio(headphones.CONFIG.PREFERRED_QUALITY, 2),
@@ -1458,8 +1461,8 @@ class WebInterface(object):
             "launch_browser", "enable_https", "api_enabled", "use_blackhole", "headphones_indexer",
             "use_newznab", "newznab_enabled", "use_torznab", "torznab_enabled",
             "use_nzbsorg", "use_omgwtfnzbs", "use_piratebay", "use_oldpiratebay",
-            "use_mininova", "use_waffles", "use_rutracker",
-            "use_apollo", "use_redacted", "preferred_bitrate_allow_lossless",
+            "use_waffles", "use_rutracker",
+            "use_orpheus", "use_redacted", "redacted_use_fltoken", "preferred_bitrate_allow_lossless",
             "detect_bitrate", "ignore_clean_releases", "freeze_db", "cue_split", "move_files",
             "rename_files", "correct_metadata", "cleanup_files", "keep_nfo", "add_album_art",
             "embed_album_art", "embed_lyrics",
@@ -1467,7 +1470,7 @@ class WebInterface(object):
             "include_extras", "official_releases_only",
             "wait_until_release_date", "autowant_upcoming", "autowant_all",
             "autowant_manually_added", "do_not_process_unmatched", "keep_torrent_files",
-            "music_encoder",
+            "music_encoder", "mb_ignore_age_missing",
             "encoderlossless", "encoder_multicore", "delete_lossless_files", "growl_enabled",
             "growl_onsnatch", "prowl_enabled",
             "prowl_onsnatch", "xbmc_enabled", "xbmc_update", "xbmc_notify", "lms_enabled",
@@ -1534,13 +1537,15 @@ class WebInterface(object):
             if len(torznab_number):
                 torznab_api_key = 'torznab_api' + torznab_number
                 torznab_enabled_key = 'torznab_enabled' + torznab_number
+                torznab_ratio_key = 'torznab_ratio' + torznab_number
                 torznab_host = kwargs.get(torznab_host_key, '')
                 torznab_api = kwargs.get(torznab_api_key, '')
                 torznab_enabled = int(kwargs.get(torznab_enabled_key, 0))
-                for key in [torznab_host_key, torznab_api_key, torznab_enabled_key]:
+                torznab_ratio = kwargs.get(torznab_ratio_key, '')
+                for key in [torznab_host_key, torznab_api_key, torznab_enabled_key, torznab_ratio_key]:
                     if key in kwargs:
                         del kwargs[key]
-                extra_torznabs.append((torznab_host, torznab_api, torznab_enabled))
+                extra_torznabs.append((torznab_host, torznab_api, torznab_ratio, torznab_enabled))
 
         # Convert the extras to list then string. Coming in as 0 or 1 (append new extras to the end)
         temp_extras_list = []
